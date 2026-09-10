@@ -54,6 +54,12 @@ test-results/
 # `git add -A` in the app's own repo cannot sweep one into a commit.
 apps/web/e2e/verify/
 
+# Nextflow scratch (the app launches runs under .data/runs/<id>/, but a manual
+# `nextflow run` from the repo root drops these here too).
+.nextflow/
+.nextflow.log*
+/work/
+
 # B2 / AWS
 .aws/
 

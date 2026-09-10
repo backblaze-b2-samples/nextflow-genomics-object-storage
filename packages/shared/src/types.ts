@@ -71,3 +71,80 @@ export interface UploadStats {
   uploads_today: number;
   total_downloads: number;
 }
+
+// --- Genomics pipeline runs (primary entity) -------------------------------
+
+export type RunStatus =
+  | "ready"
+  | "running"
+  | "succeeded"
+  | "failed"
+  | "blocked";
+
+export type Pipeline = "demo" | "nf-core/sarek" | "nf-core/rnaseq";
+
+export type Profile = "test" | "docker" | "singularity" | "standard";
+
+export interface RunCreateRequest {
+  name: string;
+  pipeline: Pipeline;
+  profile: Profile;
+  samplesheet: string | null;
+}
+
+export interface RunManifest {
+  run_id: string;
+  name: string;
+  pipeline: Pipeline;
+  profile: Profile;
+  samplesheet: string | null;
+  status: RunStatus;
+  message: string | null;
+  command: string | null;
+  work_dir: string;
+  outdir: string;
+  exit_code: number | null;
+  created_at: string;
+  updated_at: string;
+  started_at: string | null;
+  finished_at: string | null;
+}
+
+export interface StageSize {
+  stage: string;
+  prefix: string;
+  object_count: number;
+  size_bytes: number;
+  size_human: string;
+}
+
+export interface RunDetail {
+  manifest: RunManifest;
+  stages: StageSize[];
+}
+
+export interface ResultArtifact {
+  key: string;
+  name: string;
+  category: string;
+  size_bytes: number;
+  size_human: string;
+  modified_at: string;
+}
+
+export interface RunLog {
+  run_id: string;
+  log: string;
+  present: boolean;
+}
+
+export interface GenomicsStats {
+  total_runs: number;
+  ready: number;
+  running: number;
+  succeeded: number;
+  failed: number;
+  blocked: number;
+  result_artifacts: number;
+  storage: StageSize[];
+}

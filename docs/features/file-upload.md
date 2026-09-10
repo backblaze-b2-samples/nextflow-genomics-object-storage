@@ -1,12 +1,14 @@
-<!-- last_verified: 2026-08-06 -->
-# Feature: File Upload
+<!-- last_verified: 2026-09-10 -->
+# Feature: File Upload (genomics ingest)
 
 ## Purpose
 Upload files from the browser **directly to Backblaze B2** with real-time
-progress tracking. The bytes never pass through the API, so uploads are not
-capped by Vercel's ~4.5 MB Function payload limit — the same flow handles up to
-`max_file_size` (100 MB default) on local, Railway, and Vercel alike, and is a
-direct showcase of B2 as the storage layer.
+progress tracking — in this app, the ingest path for FASTQ inputs and
+samplesheets into `inputs/`. The bytes never pass through the API, so uploads are
+not capped by Vercel's ~4.5 MB Function payload limit — the same flow handles up
+to `max_file_size` (100 MB default) on local, Railway, and Vercel alike, and is a
+direct showcase of B2 as the storage layer. See [Genomics ingest](genomics-ingest.md)
+for the run-oriented framing (seeding synthetic inputs, the samplesheet selector).
 
 ## Used By
 - UI: `/upload` page, upload form component
@@ -119,6 +121,7 @@ See [infra/vercel/README.md](../../infra/vercel/README.md) for the deploy-time d
 
 ## Related Docs
 - [ARCHITECTURE.md](../../ARCHITECTURE.md)
-- [Metadata Extraction](metadata-extraction.md)
+- [Genomics ingest](genomics-ingest.md)
+- [Nextflow runs](nextflow-runs.md)
 - [App Workflows](../app-workflows.md)
 - [Design plan: presigned direct upload](../exec-plans/active/2026-08-06-presigned-direct-upload.md)

@@ -25,7 +25,7 @@ import {
   uploadStatusLabel,
   type UploadItem,
 } from "@/lib/upload-status";
-import type { FileStatus } from "@vibe-coding-starter-kit/shared";
+import type { FileStatus } from "@nextflow-genomics-object-storage/shared";
 
 export type { UploadItem };
 

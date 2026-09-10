@@ -2,11 +2,26 @@ from pydantic_settings import BaseSettings
 
 
 class Settings(BaseSettings):
-    b2_endpoint: str = "https://s3.us-west-004.backblazeb2.com"
-    b2_key_id: str = ""
+    # Standardized B2 env names (see docs/verification.md and /b2-doctor).
+    # The S3 endpoint is DERIVED from the region so there is no hardcoded region
+    # literal anywhere in source and Nextflow's `aws.region` has a single source
+    # of truth (services/api/app/service/nextflow.py reads b2_region directly).
+    b2_application_key_id: str = ""
     b2_application_key: str = ""
     b2_bucket_name: str = ""
-    b2_public_url: str = ""
+    b2_region: str = ""
+    # Optional CDN / public bucket base used to build public object URLs. The app
+    # runs without it (downloads use short-lived presigned URLs instead).
+    b2_public_url_base: str = ""
+
+    # Nextflow orchestration (headline feature). `nextflow_bin`/`java_bin` are how
+    # the run service discovers the engine; a missing binary yields a graceful
+    # `blocked` run state instead of a crash. `run_scratch_dir` is the local
+    # launch dir Nextflow writes `.nextflow/` and the generated config into; the
+    # workDir and outdir live on B2 (s3://…), not here.
+    nextflow_bin: str = "nextflow"
+    java_bin: str = "java"
+    run_scratch_dir: str = ".data/runs"
 
     api_port: int = 8000
     # Interactive API docs (/docs, /redoc, /openapi.json). On by default for
@@ -70,6 +85,19 @@ class Settings(BaseSettings):
     download_count_file: str = ".data/download_count.json"
 
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8"}
+
+    @property
+    def endpoint_url(self) -> str:
+        """B2 S3-compatible endpoint, derived from the region.
+
+        Keeping this a derived value (never a stored env var) is what lets the
+        repo avoid a hardcoded region literal: boto3 and Nextflow both read the
+        same `B2_REGION`. Returns an empty string when the region is unset so
+        startup validation reports the missing region rather than a malformed URL.
+        """
+        if not self.b2_region:
+            return ""
+        return f"https://s3.{self.b2_region}.backblazeb2.com"
 
     @property
     def cors_origins(self) -> list[str]:

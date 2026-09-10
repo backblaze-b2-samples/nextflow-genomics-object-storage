@@ -34,10 +34,12 @@ def test_openapi_metadata_uses_canonical_local_api_identity():
     schema = app.openapi()
 
     assert schema["info"] == {
-        "title": "Vibe Coding Starter Kit API",
+        "title": "Nextflow Genomics Object Storage API",
         "description": (
-            "Local API for the Vibe Coding Starter Kit template, providing file "
-            "upload and management backed by Backblaze B2. This contract "
+            "Local control-plane API for Nextflow Genomics Object Storage: it "
+            "ingests FASTQ inputs, launches Nextflow pipeline runs whose workDir "
+            "and results live on Backblaze B2 over the S3-compatible API, and "
+            "serves run status, logs, and result artifacts. This contract "
             "documents the template's local API, not a hosted public endpoint."
         ),
         "version": "0.1.0",

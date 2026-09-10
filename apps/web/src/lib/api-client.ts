@@ -3,9 +3,15 @@ import type {
   FileMetadata,
   FileMetadataDetail,
   FileUploadResponse,
+  GenomicsStats,
   PresignUploadResponse,
+  ResultArtifact,
+  RunCreateRequest,
+  RunDetail,
+  RunLog,
+  RunManifest,
   UploadStats,
-} from "@vibe-coding-starter-kit/shared";
+} from "@nextflow-genomics-object-storage/shared";
 
 // Single-origin deploys (Vercel `services`: one project serving web + API) put
 // the API under /api on the same origin, so no NEXT_PUBLIC_API_URL is needed —
@@ -41,6 +47,17 @@ export const API_CLIENT_ROUTES = {
   // payload ceiling no longer caps upload size.
   uploadPresign: { method: "post", path: "/upload/presign" },
   uploadVerify: { method: "post", path: "/upload/verify" },
+  // Genomics pipeline runs (primary entity).
+  runs: { method: "get", path: "/runs" },
+  runCreate: { method: "post", path: "/runs" },
+  runInputs: { method: "get", path: "/runs/inputs" },
+  runStats: { method: "get", path: "/runs/stats" },
+  run: { method: "get", path: "/runs/{run_id}" },
+  runLaunch: { method: "post", path: "/runs/{run_id}/launch" },
+  runDelete: { method: "delete", path: "/runs/{run_id}" },
+  runLog: { method: "get", path: "/runs/{run_id}/log" },
+  runResults: { method: "get", path: "/runs/{run_id}/results" },
+  runResultDownload: { method: "get", path: "/runs/{run_id}/results/download" },
 } as const satisfies Record<string, ApiClientRoute>;
 
 /** Typed API error with HTTP status code for caller-side branching. */
@@ -350,4 +367,65 @@ function putFileToStorage(
     }
     xhr.send(file);
   });
+}
+
+// --- Genomics pipeline runs -------------------------------------------------
+
+/** Substitute a run id into a `{run_id}` path template. */
+function runPath(template: string, runId: string): string {
+  return template.replace("{run_id}", encodeURIComponent(runId));
+}
+
+export async function getRuns() {
+  return apiFetch<RunManifest[]>(API_CLIENT_ROUTES.runs.path);
+}
+
+export async function createRun(req: RunCreateRequest) {
+  return apiFetch<RunManifest>(API_CLIENT_ROUTES.runCreate.path, {
+    method: API_CLIENT_ROUTES.runCreate.method.toUpperCase(),
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(req),
+  });
+}
+
+export async function getRunInputs() {
+  return apiFetch<string[]>(API_CLIENT_ROUTES.runInputs.path);
+}
+
+export async function getRunStats() {
+  return apiFetch<GenomicsStats>(API_CLIENT_ROUTES.runStats.path);
+}
+
+export async function getRun(runId: string) {
+  return apiFetch<RunDetail>(runPath(API_CLIENT_ROUTES.run.path, runId));
+}
+
+export async function launchRun(runId: string) {
+  return apiFetch<RunManifest>(runPath(API_CLIENT_ROUTES.runLaunch.path, runId), {
+    method: API_CLIENT_ROUTES.runLaunch.method.toUpperCase(),
+  });
+}
+
+export async function deleteRun(runId: string) {
+  return apiFetch<{ deleted: boolean; run_id: string; objects_removed: number }>(
+    runPath(API_CLIENT_ROUTES.runDelete.path, runId),
+    { method: API_CLIENT_ROUTES.runDelete.method.toUpperCase() },
+  );
+}
+
+export async function getRunLog(runId: string) {
+  return apiFetch<RunLog>(runPath(API_CLIENT_ROUTES.runLog.path, runId));
+}
+
+export async function getRunResults(runId: string) {
+  return apiFetch<ResultArtifact[]>(
+    runPath(API_CLIENT_ROUTES.runResults.path, runId),
+  );
+}
+
+export async function getRunResultDownloadUrl(runId: string, key: string) {
+  const base = runPath(API_CLIENT_ROUTES.runResultDownload.path, runId);
+  return apiFetch<{ url: string }>(
+    `${base}?key=${encodeURIComponent(key)}`,
+  );
 }

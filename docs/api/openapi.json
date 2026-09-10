@@ -294,6 +294,58 @@
         "title": "FileUploadResponse",
         "type": "object"
       },
+      "GenomicsStats": {
+        "description": "Dashboard aggregate over all runs + the data lake's stage storage.",
+        "properties": {
+          "blocked": {
+            "title": "Blocked",
+            "type": "integer"
+          },
+          "failed": {
+            "title": "Failed",
+            "type": "integer"
+          },
+          "ready": {
+            "title": "Ready",
+            "type": "integer"
+          },
+          "result_artifacts": {
+            "title": "Result Artifacts",
+            "type": "integer"
+          },
+          "running": {
+            "title": "Running",
+            "type": "integer"
+          },
+          "storage": {
+            "items": {
+              "$ref": "#/components/schemas/StageSize"
+            },
+            "title": "Storage",
+            "type": "array"
+          },
+          "succeeded": {
+            "title": "Succeeded",
+            "type": "integer"
+          },
+          "total_runs": {
+            "title": "Total Runs",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "total_runs",
+          "ready",
+          "running",
+          "succeeded",
+          "failed",
+          "blocked",
+          "result_artifacts",
+          "storage"
+        ],
+        "title": "GenomicsStats",
+        "type": "object"
+      },
       "HTTPValidationError": {
         "properties": {
           "detail": {
@@ -306,6 +358,16 @@
         },
         "title": "HTTPValidationError",
         "type": "object"
+      },
+      "Pipeline": {
+        "description": "Finite set of supported pipelines. `demo` is the bundled, Docker-free\npipeline; the nf-core options are the documented realistic path.",
+        "enum": [
+          "demo",
+          "nf-core/sarek",
+          "nf-core/rnaseq"
+        ],
+        "title": "Pipeline",
+        "type": "string"
       },
       "PresignUploadRequest": {
         "description": "What the browser declares before uploading directly to B2.",
@@ -371,6 +433,303 @@
           "expires_in"
         ],
         "title": "PresignUploadResponse",
+        "type": "object"
+      },
+      "Profile": {
+        "description": "Nextflow execution profile.",
+        "enum": [
+          "test",
+          "docker",
+          "singularity",
+          "standard"
+        ],
+        "title": "Profile",
+        "type": "string"
+      },
+      "ResultArtifact": {
+        "description": "One published output object under results/<run_id>/ (scoped explorer).",
+        "properties": {
+          "category": {
+            "title": "Category",
+            "type": "string"
+          },
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "modified_at": {
+            "format": "date-time",
+            "title": "Modified At",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "size_bytes": {
+            "title": "Size Bytes",
+            "type": "integer"
+          },
+          "size_human": {
+            "title": "Size Human",
+            "type": "string"
+          }
+        },
+        "required": [
+          "key",
+          "name",
+          "category",
+          "size_bytes",
+          "size_human",
+          "modified_at"
+        ],
+        "title": "ResultArtifact",
+        "type": "object"
+      },
+      "RunCreateRequest": {
+        "description": "Create-run form payload. Selectors carry finite value sets; `name` is the\nonly free-text field (a cohort label).",
+        "properties": {
+          "name": {
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "pipeline": {
+            "$ref": "#/components/schemas/Pipeline",
+            "default": "demo"
+          },
+          "profile": {
+            "$ref": "#/components/schemas/Profile",
+            "default": "test"
+          },
+          "samplesheet": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Samplesheet"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "title": "RunCreateRequest",
+        "type": "object"
+      },
+      "RunDetail": {
+        "description": "Run detail = manifest + the per-stage B2 storage breakdown.",
+        "properties": {
+          "manifest": {
+            "$ref": "#/components/schemas/RunManifest"
+          },
+          "stages": {
+            "items": {
+              "$ref": "#/components/schemas/StageSize"
+            },
+            "title": "Stages",
+            "type": "array"
+          }
+        },
+        "required": [
+          "manifest",
+          "stages"
+        ],
+        "title": "RunDetail",
+        "type": "object"
+      },
+      "RunLog": {
+        "properties": {
+          "log": {
+            "title": "Log",
+            "type": "string"
+          },
+          "present": {
+            "title": "Present",
+            "type": "boolean"
+          },
+          "run_id": {
+            "title": "Run Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "run_id",
+          "log",
+          "present"
+        ],
+        "title": "RunLog",
+        "type": "object"
+      },
+      "RunManifest": {
+        "description": "The full run record \u2014 exactly what is stored at runs/<run_id>/manifest.json.\n\nA launched run is an immutable execution record, which is why the UI omits an\nedit form (offering *Clone to new run* instead): the pipeline, samplesheet,\nand profile are fixed provenance of a job that has run against B2.",
+        "properties": {
+          "command": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Command"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "exit_code": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Exit Code"
+          },
+          "finished_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finished At"
+          },
+          "message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Message"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "outdir": {
+            "title": "Outdir",
+            "type": "string"
+          },
+          "pipeline": {
+            "$ref": "#/components/schemas/Pipeline"
+          },
+          "profile": {
+            "$ref": "#/components/schemas/Profile"
+          },
+          "run_id": {
+            "title": "Run Id",
+            "type": "string"
+          },
+          "samplesheet": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Samplesheet"
+          },
+          "started_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Started At"
+          },
+          "status": {
+            "$ref": "#/components/schemas/RunStatus"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          },
+          "work_dir": {
+            "title": "Work Dir",
+            "type": "string"
+          }
+        },
+        "required": [
+          "run_id",
+          "name",
+          "pipeline",
+          "profile",
+          "status",
+          "work_dir",
+          "outdir",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "RunManifest",
+        "type": "object"
+      },
+      "RunStatus": {
+        "description": "Lifecycle of a run. `blocked` is the graceful-degrade state used when the\nNextflow binary or Java is unavailable \u2014 the app never crashes on a launch.",
+        "enum": [
+          "ready",
+          "running",
+          "succeeded",
+          "failed",
+          "blocked"
+        ],
+        "title": "RunStatus",
+        "type": "string"
+      },
+      "StageSize": {
+        "description": "Storage footprint of one B2 stage prefix for a run (or bucket-wide).",
+        "properties": {
+          "object_count": {
+            "title": "Object Count",
+            "type": "integer"
+          },
+          "prefix": {
+            "title": "Prefix",
+            "type": "string"
+          },
+          "size_bytes": {
+            "title": "Size Bytes",
+            "type": "integer"
+          },
+          "size_human": {
+            "title": "Size Human",
+            "type": "string"
+          },
+          "stage": {
+            "title": "Stage",
+            "type": "string"
+          }
+        },
+        "required": [
+          "stage",
+          "prefix",
+          "object_count",
+          "size_bytes",
+          "size_human"
+        ],
+        "title": "StageSize",
         "type": "object"
       },
       "UploadStats": {
@@ -463,8 +822,8 @@
     }
   },
   "info": {
-    "description": "Local API for the Vibe Coding Starter Kit template, providing file upload and management backed by Backblaze B2. This contract documents the template's local API, not a hosted public endpoint.",
-    "title": "Vibe Coding Starter Kit API",
+    "description": "Local control-plane API for Nextflow Genomics Object Storage: it ingests FASTQ inputs, launches Nextflow pipeline runs whose workDir and results live on Backblaze B2 over the S3-compatible API, and serves run status, logs, and result artifacts. This contract documents the template's local API, not a hosted public endpoint.",
+    "title": "Nextflow Genomics Object Storage API",
     "version": "0.1.0"
   },
   "openapi": "3.1.0",
@@ -996,6 +1355,376 @@
         "summary": "Metrics",
         "tags": [
           "metrics"
+        ]
+      }
+    },
+    "/runs": {
+      "get": {
+        "operationId": "list_runs_endpoint_runs_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/RunManifest"
+                  },
+                  "title": "Response List Runs Endpoint Runs Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "List Runs Endpoint",
+        "tags": [
+          "runs"
+        ]
+      },
+      "post": {
+        "operationId": "create_run_endpoint_runs_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RunCreateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunManifest"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Run Endpoint",
+        "tags": [
+          "runs"
+        ]
+      }
+    },
+    "/runs/inputs": {
+      "get": {
+        "description": "Discovered samplesheet keys under inputs/ (populates the create form).",
+        "operationId": "list_input_sheets_endpoint_runs_inputs_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "title": "Response List Input Sheets Endpoint Runs Inputs Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "List Input Sheets Endpoint",
+        "tags": [
+          "runs"
+        ]
+      }
+    },
+    "/runs/stats": {
+      "get": {
+        "operationId": "run_stats_endpoint_runs_stats_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GenomicsStats"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Run Stats Endpoint",
+        "tags": [
+          "runs"
+        ]
+      }
+    },
+    "/runs/{run_id}": {
+      "delete": {
+        "operationId": "delete_run_endpoint_runs__run_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "run_id",
+            "required": true,
+            "schema": {
+              "title": "Run Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Delete Run Endpoint",
+        "tags": [
+          "runs"
+        ]
+      },
+      "get": {
+        "operationId": "get_run_endpoint_runs__run_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "run_id",
+            "required": true,
+            "schema": {
+              "title": "Run Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunDetail"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Run Endpoint",
+        "tags": [
+          "runs"
+        ]
+      }
+    },
+    "/runs/{run_id}/launch": {
+      "post": {
+        "operationId": "launch_run_endpoint_runs__run_id__launch_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "run_id",
+            "required": true,
+            "schema": {
+              "title": "Run Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunManifest"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Launch Run Endpoint",
+        "tags": [
+          "runs"
+        ]
+      }
+    },
+    "/runs/{run_id}/log": {
+      "get": {
+        "operationId": "get_run_log_endpoint_runs__run_id__log_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "run_id",
+            "required": true,
+            "schema": {
+              "title": "Run Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunLog"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Run Log Endpoint",
+        "tags": [
+          "runs"
+        ]
+      }
+    },
+    "/runs/{run_id}/results": {
+      "get": {
+        "operationId": "list_results_endpoint_runs__run_id__results_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "run_id",
+            "required": true,
+            "schema": {
+              "title": "Run Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ResultArtifact"
+                  },
+                  "title": "Response List Results Endpoint Runs  Run Id  Results Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Results Endpoint",
+        "tags": [
+          "runs"
+        ]
+      }
+    },
+    "/runs/{run_id}/results/download": {
+      "get": {
+        "operationId": "download_result_endpoint_runs__run_id__results_download_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "run_id",
+            "required": true,
+            "schema": {
+              "title": "Run Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "key",
+            "required": true,
+            "schema": {
+              "title": "Key",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Download Result Endpoint",
+        "tags": [
+          "runs"
         ]
       }
     },

@@ -6,20 +6,25 @@ product
 
 ## Users
 
-AI coding agents and "vibe coders" (developers who lean on AI to move fast) who clone
-this kit as the foundation for a new full-stack app. Their context: they want to skip
-the boilerplate loop (dashboard, upload, file browser, cloud storage wiring) and go
-straight to building their app's unique features. They read the repo, keep the shared
-scaffolding, and rebrand + rewrite the dashboard for their own use case.
+Bioinformaticians and clinical-genomics engineering teams evaluating Backblaze B2 as
+the S3-compatible data lake for Nextflow pipeline runs — plus the AI/dev engineers who
+wire that storage in. Their context: they run Nextflow (or nf-core) pipelines that read
+large FASTQ inputs, stage terabytes of intermediate work, and publish BAM/VCF/QC
+results, and they want those to live on cheap, S3-compatible object storage instead of
+on-prem NFS or costly hyperscaler buckets. They want a working reference for pointing
+Nextflow's `work-dir` and `--outdir` at B2, and a control plane to launch and inspect
+runs.
 
 ## Product Purpose
 
-An engineering-grade full-stack starter kit (Next.js 16 + React 19 + Tailwind v4 +
-shadcn/ui frontend, FastAPI backend) with Backblaze B2 cloud storage integrated out of
-the box. It ships a dashboard, drag-and-drop upload, and a file browser so builders
-start from a working app, not a blank page. Success = a builder can clone it, run it,
-rebrand it via one config file, and trust every screen enough to build on top without
-first fixing it.
+A control plane for genomics pipeline **runs** (Next.js 16 + React 19 + Tailwind v4 +
+shadcn/ui frontend, FastAPI backend) that uses Backblaze B2 as the terabyte-scale data
+lake for inputs, work, and results. It ingests FASTQ to B2, launches a real Nextflow
+run whose `workDir` and `--outdir` live on B2 over the S3-compatible API, and lets you
+monitor status/logs and browse/download artifacts. A bundled Docker-free demo pipeline
+makes it runnable in seconds on synthetic data. Success = a bioinformatics team can
+clone it, point it at their bucket, launch a run, and see B2 working as the pipeline's
+storage backend end to end — with every screen trustworthy enough to build on.
 
 ## Maturity and Support Boundary
 
@@ -33,11 +38,11 @@ and no SLA is provided for the repository software.
 
 ## Brand Personality
 
-Confident, precise, quietly professional. Voice is direct and free of hype ("Stop
-wiring boilerplate and start building"). The interface should feel like a modern
-developer tool — considered, calm, trustworthy — not a marketing showpiece. It is a
-**neutral foundation** that others rebrand: the design carries craft through restraint,
-not through a strong opinionated identity of its own.
+Confident, precise, quietly professional. Voice is direct and free of hype. The
+interface should feel like a modern developer/scientific tool — considered, calm,
+trustworthy — not a marketing showpiece. It is a **reference sample**: the design
+carries craft through restraint and legibility (status, provenance, storage figures
+read clearly), not through a loud identity of its own.
 
 ## Anti-references
 

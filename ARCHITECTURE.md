@@ -4,17 +4,18 @@
 ## Components
 
 - **apps/web/** — Next.js 16 frontend (App Router, Tailwind v4, shadcn/ui)
-  - Dashboard with stats, upload chart, recent uploads
-  - File upload with drag-and-drop, progress tracking
-  - File browser with preview, download, delete
+  - Dashboard with genomics run metrics (runs by status, storage by stage)
+  - Runs control plane: create, launch, monitor, delete; scoped Results explorer
+  - Genomics ingest (drag-and-drop upload) + full-bucket File browser
   - Dark mode via `next-themes`
 - **services/api/** — FastAPI backend (layered architecture)
-  - REST API for file upload, listing, deletion
-  - B2 S3 integration via boto3
-  - File metadata extraction (images, PDFs)
+  - REST API for the Run entity, ingest, listing, deletion
+  - B2 S3 integration via boto3 (storage) — confined to `repo/`
+  - Nextflow subprocess orchestration (compute) — confined to `service/`
   - Health check endpoint with B2 connectivity verification
   - Structured JSON logging with request tracing
   - Prometheus-format metrics endpoint
+- **pipelines/demo/** — bundled Docker-free Nextflow DSL2 pipeline + synthetic data
 - **packages/shared/** — TypeScript type definitions
   - Mirrors Pydantic models from the API
   - Consumed by `apps/web/` as workspace dependency
@@ -49,12 +50,14 @@ runtime/   FastAPI routes — calls service, never repo directly
 services/api/
   main.py                  App entrypoint, middleware, router registration
   app/
-    types/                 Pydantic models (FileMetadata, UploadStats, etc.)
-    config/                Settings loaded from environment
-    repo/                  B2 S3 client (data access layer)
-    service/               Business logic (upload, files, metadata)
-    runtime/               FastAPI route handlers
+    types/                 Pydantic models (RunManifest, FileMetadata, GenomicsStats, …)
+    config/                Settings loaded from environment (B2_* + Nextflow bins)
+    repo/                  B2 S3 client + runs manifest/log/results (data access)
+    service/               Business logic (runs, nextflow, upload, files)
+    runtime/               FastAPI route handlers (runs, files, upload, …)
+  scripts/                 seed_inputs.py, setup_b2_cors.py, export_openapi.py
   tests/                   pytest tests (structural + integration)
+pipelines/demo/            main.nf (DSL2) + bin/*.py processes + synthetic data
 ```
 
 ## Boundary Invariants
@@ -90,12 +93,43 @@ services/api/
 
 External provisioning and deployment remain explicit user-approved actions.
 
+## The Run entity & Nextflow orchestration
+
+The primary entity is a **Run** (a genomics pipeline run). It is persisted as
+`runs/<run_id>/manifest.json` on B2 — there is no database. Two boundaries stay
+strictly separated:
+
+- **Storage (boto3)** lives only in `repo/` (`repo/runs.py` for manifests, logs,
+  results listing, scoped delete; `repo/b2_client.py` for the shared S3 client).
+- **Compute (Nextflow subprocess)** lives only in `service/nextflow.py`. It never
+  imports boto3. It generates a per-run `nextflow.config` that points Nextflow's
+  own AWS client at B2 (`aws.client.endpoint` derived from `B2_REGION`,
+  `s3PathStyleAccess = true`), injects B2 credentials through the subprocess
+  environment (never written to disk), and shells out to `nextflow run … -work-dir
+  s3://…/work/<id> --outdir s3://…/results/<id>`. Execution runs on a background
+  thread; the terminal status + log are written back to B2. If the `nextflow`
+  binary or Java is missing, the run degrades to `blocked` (contain-and-surface).
+
+Nextflow's AWS SDK is a separate S3 client from the app's boto3; the app's B2
+attribution custom user agent (`b2ai-nextflow-genomics-object-storage`) is set on
+boto3, which is the surface `/b2-doctor` audits. The run's per-app identity is
+also written into every manifest on B2.
+
 ## Data Stores
 
-- **Backblaze B2** — object storage (S3-compatible API)
-  - All uploaded files stored in a single bucket
-  - File listing and metadata via S3 `list_objects_v2` / `head_object`
-  - No application database — B2 is the sole data store
+- **Backblaze B2** — object storage (S3-compatible API), the sole data store
+  (no application database). One bucket, organized by stage:
+
+  ```
+  inputs/    FASTQ + samplesheets (ingest; shared across runs)
+  runs/      <run_id>/manifest.json (the run record) + nextflow.log
+  work/      <run_id>/ Nextflow workDir (staged intermediates)
+  results/   <run_id>/{qc,align,variants,counts}/ published outputs
+  ```
+
+  - Listing/metadata via S3 `list_objects_v2` / `head_object`
+  - Run delete is scoped: it removes only `runs/<id>/`, `work/<id>/`, and
+    `results/<id>/` — never `inputs/` or another run.
 
 ## External Services
 
@@ -111,10 +145,13 @@ See [docs/SECURITY.md](docs/SECURITY.md) for full security documentation.
 
 ## Data Flows
 
-- **Upload**: Browser -> `POST /upload/presign` (API validates the declared file + signs a PUT) -> Browser PUTs bytes **directly to B2** -> `POST /upload/verify` (API HEADs + Range-sniffs the stored object) -> response
-- **List**: Browser -> `GET /files` -> service calls repo -> returns file list
-- **Download**: Browser -> `GET /files/{key}/download` -> service validates key -> repo generates presigned URL -> browser downloads
-- **Delete**: Browser -> `DELETE /files/{key}` -> service validates key -> repo deletes from B2
+- **Ingest**: Browser -> `POST /upload/presign` (API validates + signs a PUT) -> Browser PUTs bytes **directly to B2** (`inputs/…`) -> `POST /upload/verify`
+- **Create run**: Browser -> `POST /runs` -> service writes `runs/<id>/manifest.json` (status `ready`)
+- **Launch run**: Browser -> `POST /runs/{id}/launch` -> service checks the engine -> `running` (starts the Nextflow subprocess; work + results stream to B2) or `blocked` (engine missing)
+- **Monitor**: Browser polls `GET /runs/{id}` (status + stage sizes) and `GET /runs/{id}/log` while `running`
+- **Results**: Browser -> `GET /runs/{id}/results` (scoped to `results/<id>/`) -> download via `GET /runs/{id}/results/download?key=…` (prefix-guarded presign)
+- **Delete run**: Browser -> `DELETE /runs/{id}` -> repo deletes only that run's `runs/`, `work/`, `results/` prefixes
+- **Browse/Download (full bucket)**: `GET /files`, `GET /files-by-key/download?key=…` -> service validates key -> repo lists / presigns
 
 ## Observability
 
@@ -137,10 +174,12 @@ silently drift from FastAPI. `GET /metrics` is intentionally server-only.
 
 ## Canonical Files
 
+- Run control plane (headline): `services/api/app/service/nextflow.py`, `services/api/app/service/runs.py`, `services/api/app/repo/runs.py`, `services/api/app/runtime/runs.py`
+- Bundled pipeline: `pipelines/demo/main.nf` + `pipelines/demo/bin/*.py`
 - Layered API handler: `services/api/app/runtime/upload.py`
 - Service orchestration: `services/api/app/service/upload.py`
 - B2 data access (repo layer): `services/api/app/repo/b2_client.py`
-- Pydantic models: `services/api/app/types/` (`files.py`, `upload.py`, `stats.py`, `formatting.py`)
+- Pydantic models: `services/api/app/types/` (`runs.py`, `files.py`, `upload.py`, `stats.py`, `formatting.py`)
 - Config (pydantic-settings): `services/api/app/config/settings.py`
 - Structural tests: `services/api/tests/test_structure.py`
 - OpenAPI contract: `docs/api/openapi.json`
@@ -150,10 +189,12 @@ silently drift from FastAPI. `GET /metrics` is intentionally server-only.
 
 ## Core Features
 
+- [Genomics ingest](docs/features/genomics-ingest.md)
+- [Nextflow run orchestration](docs/features/nextflow-runs.md)
+- [Results explorer](docs/features/results-explorer.md)
 - [File Upload](docs/features/file-upload.md)
 - [File Browser](docs/features/file-browser.md)
 - [Dashboard](docs/features/dashboard.md)
-- [Metadata Extraction](docs/features/metadata-extraction.md)
 
 ## References
 

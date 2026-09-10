@@ -1,53 +1,53 @@
-<!-- last_verified: 2026-08-06 -->
+<!-- last_verified: 2026-09-10 -->
 # App Workflows
 
-User journeys inside the application.
+User journeys inside the application. The run lifecycle is the primary journey.
 
-## Upload Files
+## Ingest genomics inputs
 
-- User navigates to `/upload`
-- Drops or selects files in the dropzone
-- Client validates file size (max 100MB) and type
-- Files upload **directly from the browser to B2** (a presigned PUT). A determinate progress bar tracks the bytes leaving the browser; once they are all sent the row switches to "Verifying upload..." with an *indeterminate* sweeping bar while the API HEADs and magic-byte-sniffs the stored object. That phase has no percentage to report, and a bar parked at a full 100% read as finished-but-stuck
-- On success: toast notification, green checkmark, and a "View in Files" link through to the browser
-- On failure: red status icon with error message
-- User can clear completed uploads
-- The queue lives in an app-wide provider: navigating to another page keeps the upload running, shows an "Uploading N files" indicator in the header, and keeps the duplicate-upload guard armed
-- Reloading or closing mid-upload asks for confirmation first; if the upload dies anyway, the next load says which file didn't finish
-- See: [File Upload](features/file-upload.md)
+- User navigates to `/upload` (or runs `services/api/scripts/seed_inputs.py` to load the bundled synthetic inputs).
+- Drops or selects FASTQ / samplesheet files in the dropzone.
+- Files upload **directly from the browser to B2** (a presigned PUT) into `inputs/`. A determinate progress bar tracks the bytes; when they are all sent the row switches to "Verifying upload..." while the API HEADs and magic-byte-sniffs the stored object.
+- On success: toast + a "View in Files" link. On failure: a red status icon with the cause (e.g. bucket CORS, size/type mismatch).
+- Inputs land in the same bucket a run will read from — one lake, no copies.
+- See: [Genomics ingest](features/genomics-ingest.md), [File Upload](features/file-upload.md)
 
-## Browse and Manage Files
+## Create and launch a run
 
-- User navigates to `/files`
-- Page loads the 100 most recent objects from the API (sorted most recent first). While it loads, the page says so on screen and escalates the wording if the wait runs long — a full bucket listing measured 2.8s-21s cold
-- If that limit was hit, a notice states how many objects the bucket actually holds — the page never claims to show everything
-- Files displayed in tree view with folders and type-specific icons
-- Folders auto-expand on load until the *majority* of the listed files are reachable without clicking, so the page's own "click a file" instruction is always actionable. Stopping at the first visible file was not enough: one stray top-level object left the other 99 sealed in collapsed folders while the page claimed to show 100
-- Clicking a file row opens its preview; the per-row actions menu (preview / download / delete) is always visible, on every viewport
-- Arriving at `/files?preview=<key>` expands that file's folders and opens its preview directly. This is how the ⌘K palette and the dashboard's recent-uploads rows hand off a *specific* file; the param is consumed on arrival so it doesn't re-fire later
-- **Preview**: opens dialog with image/PDF preview + metadata panel, and the file's Download / Delete actions — the advertised "click a file" path offers everything the row menu does. The loading state holds until the media paints; a failure offers "Open in a new tab". The preview URL is signed with `Content-Disposition: inline` so PDFs render in place
-- **Download**: shows a pending state on the row plus a toast while the presigned URL is fetched, then starts the download via an anchor click (which, unlike a popup, still works if the click's user activation expired during a slow presign). Failures are reported; the click can never silently do nothing
-- **Delete**: the confirmation dialog stays open showing "Deleting..." until the request settles, then the row disappears with the toast (optimistic cache update) and the list reconciles with the server. The dialog is held deliberately — Radix closes on action click by default, which dismissed the only pending state and left the row looking untouched while the delete was still in flight
-- Empty bucket shows "No files found" with upload prompt
-- See: [File Browser](features/file-browser.md)
+- User navigates to `/runs` and clicks **New run**.
+- The create form uses selectors for the finite fields — **pipeline** (`demo` | `nf-core/sarek` | `nf-core/rnaseq`), **profile** (`test` | `docker` | `singularity` | `standard`), **samplesheet** (discovered from B2 `inputs/`) — and a free-text **run name / cohort label**. Safe defaults are pre-selected (demo + test + the seeded samplesheet); the name field shows a `cohort-YYYYMMDD` placeholder. There is no autofill button.
+- Submitting creates a run in `ready` and navigates to its detail page.
+- Clicking **Launch** starts a real Nextflow run whose `workDir` and `--outdir` are `s3://…/work/<id>` and `s3://…/results/<id>`.
+  - If Nextflow + Java are installed, status becomes `running` and the subprocess streams work + results to B2.
+  - If the engine is missing, the run goes to `blocked` with an install hint — nothing crashes, and the run + inputs are preserved for a relaunch.
+- A launched run is an immutable execution record, so there is **no Edit**. To change inputs, use **Clone to new run** (re-opens the create form prefilled). **Delete** removes only that run's `runs/`, `work/`, and `results/` prefixes.
+- See: [Nextflow runs](features/nextflow-runs.md)
 
-## View Dashboard
+## Monitor a run and download results
 
-- User navigates to `/` (home)
-- Three parallel API calls load: stats, recent files, upload activity — all served from one shared bucket listing that the API warms at startup
-- While stats load, the page states it in words above the cards rather than showing silent skeletons
-- Stats cards show: total files, storage used, uploads today, total downloads
-- Upload chart shows last 7 days of upload activity as bar chart
-- Recent uploads table shows last 10 files with filename, size, type, date. Each filename links to that file's preview on `/files` — `/files` teaches "click a file to preview it", so the same gesture here has to answer rather than being inert text
-- Empty state: "No files uploaded yet" messages
+- On `/runs/[id]`, the status badge and the per-stage storage cards (runs / work / results) update while a run is `running` (the page polls).
+- The **Log** tab tails the Nextflow log streamed to `runs/<id>/nextflow.log` on B2.
+- The **Results** tab is the scoped Results explorer: it lists `results/<id>/` artifacts grouped by category (QC / align / variants / counts) and offers a prefix-guarded presigned download for each — a download can never reach outside this run's results.
+- See: [Results explorer](features/results-explorer.md)
+
+## View the dashboard
+
+- User navigates to `/` (home).
+- Stat cards show total runs, succeeded, running, and result-artifact count.
+- The storage-by-stage panel shows how many bytes/objects live under `inputs/`, `runs/`, `work/`, and `results/` — the data lake at a glance.
+- The recent runs table links each run to its detail page and refreshes while any run is `running`.
+- Empty and error states are explicit (never a false "0 runs").
 - See: [Dashboard](features/dashboard.md)
 
-## Change Preferences
+## Browse the whole bucket
 
-- User navigates to `/settings`
-- A banner at the top states that the page is mostly a demonstration: only Theme is wired up for real, the rest showcases what a settings page can look like when you adapt the kit
-- **Theme** (real): editing it and saving applies it immediately and persists it (`next-themes`), and the header's theme toggle drives the same state
-- **Profile and preference fields** (demo): Display name, Bio, Default file view (Tree/List/Grid), Email me on every upload, Warn me when approaching quota + threshold. Each is labelled "Demo field", persists to `localStorage` only, and drives no behaviour — there is no account system, mailer, quota banner, activity log, or List/Grid view behind them yet
-- Saving reports honestly: a success toast that separates the real theme change from the locally-stored demo values, or a warning toast if the browser blocked storage (theme still changes). It never claims a save that did not happen — the original page toasted "Settings saved" for fields that changed nothing
-- Danger Zone actions are a demo — no real delete runs
+- User navigates to `/files` — the full-bucket explorer over `inputs/ work/ results/ runs/`.
+- Files display in a tree with type icons; clicking a file opens a preview with Download / Delete; folders auto-expand until files are on screen.
+- This is the raw lake view; for a single run's outputs, the scoped Results explorer on the run detail page is confined to that run.
+- See: [File Browser](features/file-browser.md)
+
+## Change preferences
+
+- User navigates to `/settings`. A banner states the page is mostly a demonstration: only **Theme** is wired up for real; profile and preference fields persist to `localStorage` only and drive no behaviour.
+- Saving reports honestly — it never claims a save that did not happen.
 - See: [Settings](features/settings.md)

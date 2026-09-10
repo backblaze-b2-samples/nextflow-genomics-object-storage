@@ -1,10 +1,7 @@
-import Link from "next/link";
-import { Upload } from "lucide-react";
-
-import { Button } from "@/components/ui/button";
-import { StatsCards } from "@/components/dashboard/stats-cards";
-import { RecentUploadsTable } from "@/components/dashboard/recent-uploads-table";
-import { UploadChart } from "@/components/dashboard/upload-chart";
+import { RunStatsCards } from "@/components/dashboard/run-stats-cards";
+import { StorageByStage } from "@/components/dashboard/storage-by-stage";
+import { RecentRunsTable } from "@/components/dashboard/recent-runs-table";
+import { CreateRunDialog } from "@/components/runs/create-run-form";
 
 export default function DashboardPage() {
   return (
@@ -13,23 +10,19 @@ export default function DashboardPage() {
         <div>
           <h1 className="page-title">Dashboard</h1>
           <p className="text-sm text-muted-foreground mt-1.5">
-            Overview of your Backblaze B2 storage activity.
+            Your genomics pipeline runs and the Backblaze B2 data lake behind
+            them.
           </p>
         </div>
-        <Button asChild size="sm" className="h-8">
-          <Link href="/upload">
-            <Upload className="h-3.5 w-3.5" />
-            Upload files
-          </Link>
-        </Button>
+        <CreateRunDialog />
       </div>
-      <StatsCards />
+      <RunStatsCards />
       <div className="grid gap-6 lg:grid-cols-2">
         <div className="animate-fade-in-up stagger-3">
-          <UploadChart />
+          <StorageByStage />
         </div>
         <div className="animate-fade-in-up stagger-4">
-          <RecentUploadsTable />
+          <RecentRunsTable />
         </div>
       </div>
     </div>

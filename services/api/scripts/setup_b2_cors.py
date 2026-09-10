@@ -47,17 +47,16 @@ def err(message: str) -> None:
 
 def _client():
     # Standalone client (not app.repo.get_s3_client) on purpose: bucket-level
-    # CORS calls sign more reliably with an explicit region derived from the
-    # endpoint, whereas the app client leaves region unset for object ops.
-    host = settings.b2_endpoint.split("://", 1)[-1]
-    region = host.split(".")[1] if host.startswith("s3.") else "us-east-005"
+    # CORS calls sign more reliably with an explicit region. Both the region and
+    # the derived endpoint come from B2_REGION (settings), so there is no
+    # hardcoded region literal here.
     return boto3.client(
         "s3",
-        endpoint_url=settings.b2_endpoint,
-        aws_access_key_id=settings.b2_key_id,
+        endpoint_url=settings.endpoint_url,
+        aws_access_key_id=settings.b2_application_key_id,
         aws_secret_access_key=settings.b2_application_key,
-        region_name=region,
-        config=Config(signature_version="s3v4", user_agent_extra="b2ai-oss-start"),
+        region_name=settings.b2_region or None,
+        config=Config(signature_version="s3v4", user_agent_extra="b2ai-nextflow-genomics-object-storage"),
     )
 
 

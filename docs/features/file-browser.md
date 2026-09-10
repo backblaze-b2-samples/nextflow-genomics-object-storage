@@ -1,8 +1,8 @@
-<!-- last_verified: 2026-07-28 -->
-# Feature: File Browser
+<!-- last_verified: 2026-09-10 -->
+# Feature: File Browser (full-bucket explorer)
 
 ## Purpose
-List, preview, download, and delete files stored in Backblaze B2.
+List, preview, download, and delete every object in the Backblaze B2 bucket — the raw view of the whole data lake (`inputs/ work/ results/ runs/`). This is the general-purpose explorer; for a single run's outputs use the run-scoped [Results explorer](results-explorer.md), which is confined to `results/<run_id>/` and cannot reach other prefixes.
 
 ## Used By
 - UI: `/files` page, file browser component
