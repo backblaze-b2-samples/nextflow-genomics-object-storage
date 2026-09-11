@@ -117,9 +117,10 @@ logger = logging.getLogger("api")
 
 API_TITLE = "Nextflow Genomics Object Storage API"
 API_DESCRIPTION = (
-    "Local control-plane API for Nextflow Genomics Object Storage: it ingests "
-    "FASTQ inputs, launches Nextflow pipeline runs whose workDir and results "
-    "live on Backblaze B2 over the S3-compatible API, and serves run status, "
+    "Local control-plane API for Nextflow Genomics Object Storage: it stages "
+    "FASTQ inputs from Backblaze B2, launches Nextflow pipeline runs that "
+    "publish their results back to Backblaze B2 over the S3-compatible API "
+    "(workDir stays local for this Docker-free demo), and serves run status, "
     "logs, and result artifacts. This contract documents the template's local "
     "API, not a hosted public endpoint."
 )

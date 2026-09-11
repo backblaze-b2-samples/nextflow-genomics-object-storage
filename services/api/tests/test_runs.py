@@ -7,9 +7,11 @@ Hermetic: the B2 repo boundary and the Nextflow subprocess are both mocked, so
 from datetime import UTC, datetime
 
 import pytest
+from botocore.exceptions import ClientError
 
 from app.repo import runs as runs_repo
 from app.service import nextflow
+from app.service import runs as runs_service
 
 
 def _ready_manifest(run_id: str = "20260101-000000-abc123") -> dict:
@@ -45,7 +47,11 @@ async def test_create_run_returns_ready(client, monkeypatch):
     body = resp.json()
     assert body["status"] == "ready"
     assert body["name"] == "cohort-x"
-    assert body["work_dir"].startswith("s3://")
+    # workDir is LOCAL (the bundled pipeline's LOCAL executor requires a POSIX
+    # path); outdir (results) stays on B2.
+    assert not body["work_dir"].startswith("s3://")
+    assert body["work_dir"].endswith(f"/{body['run_id']}/work")
+    assert body["outdir"].startswith("s3://")
     assert written["status"] == "ready"
 
 
@@ -181,3 +187,102 @@ def test_delete_run_only_touches_scoped_prefixes(monkeypatch):
     }
     assert all(run_id in key for key in deleted_keys)
     assert not any(key.startswith("inputs/") for key in deleted_keys)
+
+
+# --- run-detail progress bar: expected_artifacts ----------------------------
+
+
+def test_get_run_detail_expected_artifacts_demo_pipeline(monkeypatch):
+    manifest = _ready_manifest()
+    monkeypatch.setattr(runs_repo, "read_manifest", lambda rid: dict(manifest))
+    monkeypatch.setattr(runs_repo, "stage_size", lambda prefix: (0, 0))
+    monkeypatch.setattr(runs_repo, "read_samplesheet_row_count", lambda key: 2)
+
+    detail = runs_service.get_run_detail(manifest["run_id"])
+
+    # 2 samples x 4 demo stages (qc/align/variants/counts).
+    assert detail.expected_artifacts == 8
+
+
+def test_get_run_detail_expected_artifacts_none_without_samplesheet(monkeypatch):
+    manifest = _ready_manifest()
+    manifest["samplesheet"] = None
+    monkeypatch.setattr(runs_repo, "read_manifest", lambda rid: dict(manifest))
+    monkeypatch.setattr(runs_repo, "stage_size", lambda prefix: (0, 0))
+
+    detail = runs_service.get_run_detail(manifest["run_id"])
+
+    assert detail.expected_artifacts is None
+
+
+def test_get_run_detail_expected_artifacts_none_for_non_demo_pipeline(monkeypatch):
+    manifest = _ready_manifest()
+    manifest["pipeline"] = "nf-core/sarek"
+    monkeypatch.setattr(runs_repo, "read_manifest", lambda rid: dict(manifest))
+    monkeypatch.setattr(runs_repo, "stage_size", lambda prefix: (0, 0))
+
+    detail = runs_service.get_run_detail(manifest["run_id"])
+
+    # Stage count for a non-demo pipeline is unknown — never guess.
+    assert detail.expected_artifacts is None
+
+
+def test_get_run_detail_expected_artifacts_none_when_samplesheet_unreadable(
+    monkeypatch,
+):
+    manifest = _ready_manifest()
+    monkeypatch.setattr(runs_repo, "read_manifest", lambda rid: dict(manifest))
+    monkeypatch.setattr(runs_repo, "stage_size", lambda prefix: (0, 0))
+    monkeypatch.setattr(runs_repo, "read_samplesheet_row_count", lambda key: None)
+
+    detail = runs_service.get_run_detail(manifest["run_id"])
+
+    assert detail.expected_artifacts is None
+
+
+class _FakeBody:
+    def __init__(self, data: bytes):
+        self._data = data
+
+    def read(self):
+        return self._data
+
+
+class _FakeS3Object:
+    """Fake S3 client serving a single canned get_object response or error."""
+
+    def __init__(self, body: bytes | None = None, missing: bool = False):
+        self._body = body
+        self._missing = missing
+
+    def get_object(self, **kwargs):
+        if self._missing:
+            raise ClientError({"Error": {"Code": "404"}}, "GetObject")
+        return {"Body": _FakeBody(self._body)}
+
+
+def test_read_samplesheet_row_count_counts_data_rows(monkeypatch):
+    csv_bytes = (
+        b"sample,fastq\n"
+        b"sample_a,s3://bucket/inputs/fastq/sample_a.fastq\n"
+        b"sample_b,s3://bucket/inputs/fastq/sample_b.fastq\n"
+    )
+    monkeypatch.setattr(runs_repo, "get_s3_client", lambda: _FakeS3Object(csv_bytes))
+
+    assert (
+        runs_repo.read_samplesheet_row_count("inputs/samplesheets/x.csv") == 2
+    )
+
+
+def test_read_samplesheet_row_count_missing_object_returns_none(monkeypatch):
+    monkeypatch.setattr(runs_repo, "get_s3_client", lambda: _FakeS3Object(missing=True))
+
+    assert runs_repo.read_samplesheet_row_count("inputs/samplesheets/x.csv") is None
+
+
+def test_read_samplesheet_row_count_header_only_returns_none(monkeypatch):
+    monkeypatch.setattr(
+        runs_repo, "get_s3_client", lambda: _FakeS3Object(b"sample,fastq\n")
+    )
+
+    assert runs_repo.read_samplesheet_row_count("inputs/samplesheets/x.csv") is None

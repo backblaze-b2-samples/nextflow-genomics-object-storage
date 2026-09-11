@@ -106,8 +106,10 @@ strictly separated:
   own AWS client at B2 (`aws.client.endpoint` derived from `B2_REGION`,
   `s3PathStyleAccess = true`), injects B2 credentials through the subprocess
   environment (never written to disk), and shells out to `nextflow run … -work-dir
-  s3://…/work/<id> --outdir s3://…/results/<id>`. Execution runs on a background
-  thread; the terminal status + log are written back to B2. If the `nextflow`
+  <local path> --outdir s3://…/results/<id>` — the bundled demo's LOCAL executor
+  requires a POSIX workDir; an `s3://` workDir needs a cloud executor (e.g. AWS
+  Batch) or Fusion. Execution runs on a background thread; the terminal status +
+  log are written back to B2. If the `nextflow`
   binary or Java is missing, the run degrades to `blocked` (contain-and-surface).
 
 Nextflow's AWS SDK is a separate S3 client from the app's boto3; the app's B2
@@ -123,7 +125,8 @@ also written into every manifest on B2.
   ```
   inputs/    FASTQ + samplesheets (ingest; shared across runs)
   runs/      <run_id>/manifest.json (the run record) + nextflow.log
-  work/      <run_id>/ Nextflow workDir (staged intermediates)
+  work/      <run_id>/ Nextflow workDir — only used with a cloud executor / Fusion;
+             the bundled demo's workDir is local (LOCAL executor needs a POSIX path)
   results/   <run_id>/{qc,align,variants,counts}/ published outputs
   ```
 

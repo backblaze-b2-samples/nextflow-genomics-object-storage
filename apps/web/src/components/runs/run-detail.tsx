@@ -9,6 +9,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Progress } from "@/components/ui/progress";
 import { ErrorState } from "@/components/ui/error-state";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
@@ -26,13 +27,26 @@ import { RunStatusBadge } from "@/components/runs/run-status-badge";
 import { RunLog } from "@/components/runs/run-log";
 import { ResultsExplorer } from "@/components/runs/results-explorer";
 import { CreateRunDialog } from "@/components/runs/create-run-form";
-import { useDeleteRun, useLaunchRun, useRun } from "@/lib/queries";
+import {
+  NON_TERMINAL_STATUSES,
+  useDeleteRun,
+  useLaunchRun,
+  useRun,
+  useRunResults,
+} from "@/lib/queries";
 
 export function RunDetail({ runId }: { runId: string }) {
   const router = useRouter();
   const { data, isLoading, error, refetch } = useRun(runId);
   const launch = useLaunchRun();
   const remove = useDeleteRun();
+  const isRunning = data?.manifest.status === "running";
+  // Same query + cache key as the Results tab's own useRunResults call below
+  // (ResultsExplorer) — React Query dedupes them, so this adds no extra
+  // polling, just a second reader of the same published-artifacts count for
+  // the progress bar's numerator.
+  const { data: results } = useRunResults(runId, isRunning, isRunning);
+  const publishedCount = results?.length ?? 0;
 
   if (isLoading) {
     return (
@@ -47,8 +61,8 @@ export function RunDetail({ runId }: { runId: string }) {
     return <ErrorState error={error} onRetry={() => refetch()} />;
   }
 
-  const { manifest, stages } = data;
-  const isRunning = manifest.status === "running";
+  const { manifest, stages, expected_artifacts: expectedArtifacts } = data;
+  const isRunActive = NON_TERMINAL_STATUSES.includes(manifest.status);
 
   const onLaunch = () =>
     launch.mutate(runId, {
@@ -100,6 +114,35 @@ export function RunDetail({ runId }: { runId: string }) {
             {manifest.pipeline} · profile {manifest.profile}
             {manifest.samplesheet ? ` · ${manifest.samplesheet.split("/").pop()}` : ""}
           </p>
+          {isRunning && (
+            <div className="mt-3 max-w-xs">
+              {expectedArtifacts ? (
+                <>
+                  <Progress
+                    aria-label="Run progress"
+                    value={Math.min(
+                      100,
+                      (publishedCount / expectedArtifacts) * 100
+                    )}
+                    className="h-1.5"
+                  />
+                  <p className="mt-1 text-xs text-muted-foreground tabular-nums">
+                    {Math.min(publishedCount, expectedArtifacts)}/
+                    {expectedArtifacts} artifacts published
+                  </p>
+                </>
+              ) : (
+                // Expected total unknown (non-demo pipeline, or an unreadable
+                // samplesheet) — an honest indeterminate sweep beats a fake
+                // percentage. Same track used by the Upload page.
+                <div
+                  role="progressbar"
+                  aria-label="Run progress"
+                  className="progress-indeterminate h-1.5 w-full rounded-full"
+                />
+              )}
+            </div>
+          )}
         </div>
         <div className="flex shrink-0 items-center gap-2">
           <Button size="sm" className="h-8" disabled={isRunning || launch.isPending} onClick={onLaunch}>
@@ -202,7 +245,7 @@ export function RunDetail({ runId }: { runId: string }) {
         <TabsContent value="results">
           <Card>
             <CardContent className="p-0">
-              <ResultsExplorer runId={runId} />
+              <ResultsExplorer runId={runId} runIsActive={isRunActive} />
             </CardContent>
           </Card>
         </TabsContent>

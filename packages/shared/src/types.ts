@@ -121,6 +121,10 @@ export interface StageSize {
 export interface RunDetail {
   manifest: RunManifest;
   stages: StageSize[];
+  /** Expected total published result artifacts, or null when it can't be
+   *  estimated (non-demo pipeline, or an unreadable samplesheet) — render an
+   *  indeterminate progress indicator in that case instead of a fraction. */
+  expected_artifacts: number | null;
 }
 
 export interface ResultArtifact {
@@ -136,6 +140,12 @@ export interface RunLog {
   run_id: string;
   log: string;
   present: boolean;
+}
+
+export interface SeedInputsResponse {
+  uploaded: string[];
+  samplesheet: string;
+  sample_count: number;
 }
 
 export interface GenomicsStats {

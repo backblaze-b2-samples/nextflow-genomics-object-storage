@@ -13,9 +13,11 @@ fi
 
 export API_PORT
 export NEXT_PUBLIC_API_URL="http://localhost:$API_PORT"
-# Dev-only: accept any localhost:<port> origin so the web side works
-# regardless of which port `next dev` lands on. Never set in prod.
-export API_CORS_ORIGIN_REGEX='^http://localhost:[0-9]+$'
+# Dev-only: accept any localhost:<port> or 127.0.0.1:<port> origin so the web
+# side works regardless of which port `next dev` lands on or whether the user
+# opens localhost or 127.0.0.1 (scripts/wait-ready.mjs and the e2e harness use
+# 127.0.0.1). Never set in prod.
+export API_CORS_ORIGIN_REGEX='^http://(localhost|127\.0\.0\.1):[0-9]+$'
 
 exec pnpm exec concurrently \
   --kill-others-on-fail \

@@ -11,6 +11,8 @@ Prefix layout on the bucket:
     results/   <run_id>/{qc,align,variants,counts}/  published outputs
 """
 
+import csv
+import io
 import json
 
 from botocore.exceptions import BotoCoreError, ClientError
@@ -137,6 +139,25 @@ def stage_size(prefix: str) -> tuple[int, int]:
 def list_results(run_id: str) -> list[dict]:
     """Raw objects under results/<run_id>/ (scoped Results explorer)."""
     return _paginate(f"{RESULTS_PREFIX}{run_id}/")
+
+
+def read_samplesheet_row_count(key: str) -> int | None:
+    """Data-row count of the samplesheet CSV at `key` (header excluded).
+
+    Best-effort: returns None (never raises) if the object is missing,
+    unreadable, or empty, so a storage hiccup can only degrade the run-detail
+    progress bar to indeterminate — it can never fail the request.
+    """
+    client = get_s3_client()
+    try:
+        resp = client.get_object(Bucket=settings.b2_bucket_name, Key=key)
+        text = resp["Body"].read().decode("utf-8", "replace")
+    except (ClientError, BotoCoreError):
+        return None
+    rows = [row for row in csv.reader(io.StringIO(text)) if any(c.strip() for c in row)]
+    if len(rows) < 2:
+        return None
+    return len(rows) - 1  # exclude header
 
 
 def list_input_sheets() -> list[str]:

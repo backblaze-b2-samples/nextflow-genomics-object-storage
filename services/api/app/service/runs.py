@@ -63,7 +63,9 @@ def create_run(req: RunCreateRequest) -> RunManifest:
         "status": "ready",
         "message": None,
         "command": None,
-        "work_dir": f"s3://{bucket}/work/{run_id}",
+        # LOCAL path: the bundled pipeline's LOCAL executor requires a POSIX
+        # workDir (see service/nextflow.py). Results still publish to B2.
+        "work_dir": nextflow.local_work_dir(run_id),
         "outdir": f"s3://{bucket}/results/{run_id}",
         "exit_code": None,
         "created_at": now,
@@ -100,14 +102,43 @@ def _stage(stage: str, prefix: str) -> StageSize:
     )
 
 
+def _expected_artifacts(manifest: dict) -> int | None:
+    """Denominator for the run-detail progress bar: expected total published
+    result artifacts, or None when it can't be estimated (frontend then falls
+    back to an indeterminate indicator).
+
+    Demo-specific assumption: the bundled `demo` pipeline always runs every
+    sample through all of `_CATEGORIES` (qc/align/variants/counts), so the
+    total is (samplesheet data rows) x (len(_CATEGORIES)). Only the `demo`
+    pipeline's stage count is known to us here — an nf-core pipeline's stage
+    count isn't, so those return None rather than guess.
+    """
+    if manifest.get("pipeline") != "demo":
+        return None
+    samplesheet = manifest.get("samplesheet")
+    if not samplesheet:
+        return None
+    sample_count = runs_repo.read_samplesheet_row_count(samplesheet)
+    if not sample_count:
+        return None
+    return sample_count * len(_CATEGORIES)
+
+
 def get_run_detail(run_id: str) -> RunDetail:
+    # No "work" B2 stage: this app always runs Nextflow's LOCAL executor, whose
+    # workDir is local disk (see service/nextflow.py), so work/<run_id>/ on B2 is
+    # never populated. Showing it here would read as a broken/empty state rather
+    # than the accurate "workDir isn't on B2 for this run" fact.
     manifest = _require_manifest(run_id)
     stages = [
         _stage("runs", f"{runs_repo.RUNS_PREFIX}{run_id}/"),
-        _stage("work", f"{runs_repo.WORK_PREFIX}{run_id}/"),
         _stage("results", f"{runs_repo.RESULTS_PREFIX}{run_id}/"),
     ]
-    return RunDetail(manifest=RunManifest(**manifest), stages=stages)
+    return RunDetail(
+        manifest=RunManifest(**manifest),
+        stages=stages,
+        expected_artifacts=_expected_artifacts(manifest),
+    )
 
 
 def launch_run(run_id: str) -> RunManifest:

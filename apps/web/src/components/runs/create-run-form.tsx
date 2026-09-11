@@ -36,7 +36,7 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
-import { useCreateRun, useRunInputs } from "@/lib/queries";
+import { useCreateRun, useRunInputs, useSeedDemoInputs } from "@/lib/queries";
 
 const NONE = "__none__";
 
@@ -81,6 +81,7 @@ export function CreateRunDialog({
   const router = useRouter();
   const createRun = useCreateRun();
   const { data: inputs = [] } = useRunInputs();
+  const seedInputs = useSeedDemoInputs();
 
   const form = useForm<FormValues>({
     resolver: zodResolver(schema),
@@ -91,6 +92,18 @@ export function CreateRunDialog({
       samplesheet: initial?.samplesheet ?? "",
     },
   });
+
+  const onSeedInputs = () =>
+    seedInputs.mutate(undefined, {
+      onSuccess: (result) => {
+        toast.success("Demo inputs seeded", {
+          description: `Uploaded ${result.sample_count} FASTQ file(s) and a samplesheet to inputs/.`,
+        });
+        form.setValue("samplesheet", result.samplesheet);
+      },
+      onError: (err) =>
+        toast.error("Could not seed demo inputs", { description: err.message }),
+    });
 
   // Safe default (not an autofill button): once inputs load, preselect the
   // seeded synthetic samplesheet if the user hasn't chosen one yet. The
@@ -142,9 +155,10 @@ export function CreateRunDialog({
         <DialogHeader>
           <DialogTitle>New pipeline run</DialogTitle>
           <DialogDescription>
-            Configure a Nextflow run. Its workDir and results are written to
-            Backblaze B2. A launched run is immutable — to change inputs later,
-            clone it into a new run.
+            Configure a Nextflow run. Its inputs are staged from Backblaze B2 and
+            its results are published back to B2 (workDir runs on local disk). A
+            launched run is immutable — to change inputs later, clone it into a
+            new run.
           </DialogDescription>
         </DialogHeader>
 
@@ -248,9 +262,28 @@ export function CreateRunDialog({
                   </Select>
                   <FormDescription>
                     {inputs.length === 0
-                      ? "No samplesheets found. Seed the synthetic demo inputs with scripts/seed_inputs.py."
+                      ? "No samplesheets found."
                       : "Discovered under inputs/. The seeded demo samplesheet is preselected."}
                   </FormDescription>
+                  {/* Always offered, not just when inputs.length === 0: the
+                      /upload page copy unconditionally points users here to
+                      (re)seed the demo dataset, and seeding is idempotent
+                      (see services/api/app/service/inputs.py), so re-running
+                      it once a samplesheet already exists is a safe reset. */}
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="h-8 w-fit"
+                    disabled={seedInputs.isPending}
+                    onClick={onSeedInputs}
+                  >
+                    {seedInputs.isPending
+                      ? "Seeding demo inputs…"
+                      : inputs.length === 0
+                        ? "Seed demo inputs"
+                        : "Re-seed demo inputs"}
+                  </Button>
                 </FormItem>
               )}
             />

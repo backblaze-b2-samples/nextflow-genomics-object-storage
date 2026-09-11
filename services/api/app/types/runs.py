@@ -2,8 +2,10 @@
 
 A Run is the primary entity of this sample. It is persisted on B2 as
 `runs/<run_id>/manifest.json` (B2 is the sole store — no database), and its
-Nextflow log lives at `runs/<run_id>/nextflow.log`. The run's Nextflow `workDir`
-and `--outdir` also live on B2 (`work/<run_id>/`, `results/<run_id>/`).
+Nextflow log lives at `runs/<run_id>/nextflow.log`. The run's `--outdir` also
+lives on B2 (`results/<run_id>/`); `workDir` is a LOCAL path — the bundled
+pipeline's LOCAL executor requires a POSIX workDir (see
+`app/service/nextflow.py`).
 """
 
 from datetime import datetime
@@ -92,6 +94,12 @@ class RunDetail(BaseModel):
 
     manifest: RunManifest
     stages: list[StageSize]
+    # Denominator for the run-detail progress bar: expected total published
+    # result artifacts for this run, or None when it can't be estimated (e.g.
+    # a non-demo pipeline, or an unreadable samplesheet) — the frontend falls
+    # back to an indeterminate indicator in that case. See
+    # service/runs.py::_expected_artifacts.
+    expected_artifacts: int | None = None
 
 
 class ResultArtifact(BaseModel):

@@ -17,15 +17,15 @@ User journeys inside the application. The run lifecycle is the primary journey.
 - User navigates to `/runs` and clicks **New run**.
 - The create form uses selectors for the finite fields — **pipeline** (`demo` | `nf-core/sarek` | `nf-core/rnaseq`), **profile** (`test` | `docker` | `singularity` | `standard`), **samplesheet** (discovered from B2 `inputs/`) — and a free-text **run name / cohort label**. Safe defaults are pre-selected (demo + test + the seeded samplesheet); the name field shows a `cohort-YYYYMMDD` placeholder. There is no autofill button.
 - Submitting creates a run in `ready` and navigates to its detail page.
-- Clicking **Launch** starts a real Nextflow run whose `workDir` and `--outdir` are `s3://…/work/<id>` and `s3://…/results/<id>`.
-  - If Nextflow + Java are installed, status becomes `running` and the subprocess streams work + results to B2.
+- Clicking **Launch** starts a real Nextflow run whose `--outdir` is `s3://…/results/<id>` (its `workDir` is a local path — the bundled demo's LOCAL executor requires POSIX).
+  - If Nextflow + Java are installed, status becomes `running` and the subprocess streams results to B2 (work stages locally).
   - If the engine is missing, the run goes to `blocked` with an install hint — nothing crashes, and the run + inputs are preserved for a relaunch.
 - A launched run is an immutable execution record, so there is **no Edit**. To change inputs, use **Clone to new run** (re-opens the create form prefilled). **Delete** removes only that run's `runs/`, `work/`, and `results/` prefixes.
 - See: [Nextflow runs](features/nextflow-runs.md)
 
 ## Monitor a run and download results
 
-- On `/runs/[id]`, the status badge and the per-stage storage cards (runs / work / results) update while a run is `running` (the page polls).
+- On `/runs/[id]`, the status badge and the per-stage storage cards (runs / results — the local-executor workDir isn't a B2 stage) update while a run is `running` (the page polls).
 - The **Log** tab tails the Nextflow log streamed to `runs/<id>/nextflow.log` on B2.
 - The **Results** tab is the scoped Results explorer: it lists `results/<id>/` artifacts grouped by category (QC / align / variants / counts) and offers a prefix-guarded presigned download for each — a download can never reach outside this run's results.
 - See: [Results explorer](features/results-explorer.md)
