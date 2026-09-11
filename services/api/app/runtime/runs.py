@@ -9,6 +9,7 @@ import logging
 from fastapi import APIRouter, HTTPException
 
 from app.service import runs as runs_service
+from app.service.inputs import NoBundledDataError, seed_demo_inputs
 from app.service.runs import RunNotFoundError
 from app.types import (
     GenomicsStats,
@@ -17,6 +18,7 @@ from app.types import (
     RunDetail,
     RunLog,
     RunManifest,
+    SeedInputsResponse,
 )
 
 logger = logging.getLogger(__name__)
@@ -56,6 +58,22 @@ def list_input_sheets_endpoint():
     """Discovered samplesheet keys under inputs/ (populates the create form)."""
     try:
         return runs_service.list_input_sheets()
+    except RuntimeError:
+        raise _storage_error() from None
+
+
+@router.post("/runs/inputs/seed", response_model=SeedInputsResponse)
+def seed_demo_inputs_endpoint():
+    """Upload the bundled synthetic FASTQ + samplesheet to inputs/ on B2.
+
+    The in-app equivalent of `scripts/seed_inputs.py`, so a UI-only user (no
+    terminal access) can still get a usable samplesheet and launch a run —
+    see docs/features/genomics-ingest.md.
+    """
+    try:
+        return seed_demo_inputs()
+    except NoBundledDataError as e:
+        raise HTTPException(status_code=404, detail=str(e)) from None
     except RuntimeError:
         raise _storage_error() from None
 

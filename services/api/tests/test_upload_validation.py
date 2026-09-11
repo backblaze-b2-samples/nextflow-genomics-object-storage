@@ -205,7 +205,6 @@ def test_presign_returns_signed_put(monkeypatch):
         ("config.yaml", "application/yaml"),
         ("config.yml", "application/x-yaml"),
         ("data.jsonl", "application/x-ndjson"),
-        ("table.tsv", "text/tab-separated-values"),
         ("feed.xml", "application/xml"),
         ("feed.xml", "text/xml"),
         (
@@ -230,6 +229,38 @@ def test_presign_returns_signed_put(monkeypatch):
 def test_presign_accepts_new_filetypes(filename, content_type):
     """Each newly allowed type clears the allow-list + extension checks."""
     assert _validate_declared(filename, content_type, 16) == f"uploads/{filename}"
+
+
+# --- genomics-ingest uploads route into inputs/, not uploads/ ---------------
+
+
+@pytest.mark.parametrize(
+    ("filename", "content_type", "expected_key"),
+    [
+        ("samples.csv", "text/csv", "inputs/samplesheets/samples.csv"),
+        (
+            "samples.tsv",
+            "text/tab-separated-values",
+            "inputs/samplesheets/samples.tsv",
+        ),
+        ("reads.fastq", "text/plain", "inputs/fastq/reads.fastq"),
+        ("reads.fasta", "text/plain", "inputs/fastq/reads.fasta"),
+    ],
+)
+def test_presign_routes_genomics_types_into_inputs_tree(
+    filename, content_type, expected_key
+):
+    """Samplesheets and FASTQ reads land under inputs/ so the existing
+    create-run samplesheet scan (repo/runs.py::list_input_sheets) finds a
+    user-uploaded samplesheet, instead of the dead-end generic uploads/
+    prefix."""
+    assert _validate_declared(filename, content_type, 16) == expected_key
+
+
+def test_presign_keeps_generic_types_under_uploads():
+    """Non-genomics text/plain (e.g. .txt) is unaffected by the fastq/fasta
+    carve-out and still gets the generic prefix."""
+    assert _validate_declared("notes.txt", "text/plain", 16) == "uploads/notes.txt"
 
 
 # --- post-upload verification (HEAD + Range-GET sniff) -----------------------
@@ -299,6 +330,19 @@ def test_verify_missing_object_is_404(monkeypatch):
 def test_verify_rejects_key_outside_uploads_prefix():
     with pytest.raises(UploadError):
         verify_upload("other/evil.txt")
+
+
+def test_verify_accepts_inputs_samplesheet_prefix(monkeypatch):
+    """A samplesheet routed to inputs/samplesheets/ by presign must still pass
+    verify — it is not confined to the generic uploads/ prefix."""
+    meta = _meta(
+        "inputs/samplesheets/samples.csv", size_bytes=16, content_type="text/csv"
+    )
+    deleted, invalidated = _wire_verify(monkeypatch, metadata=meta, head_bytes=b"")
+    result = verify_upload("inputs/samplesheets/samples.csv")
+    assert result.key == "inputs/samplesheets/samples.csv"
+    assert deleted == []
+    assert invalidated == [True]
 
 
 def test_verify_skips_range_get_for_signatureless_type(monkeypatch):

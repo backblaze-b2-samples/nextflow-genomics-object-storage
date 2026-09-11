@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useRef } from "react";
 import {
   useMutation,
   useQuery,
@@ -24,6 +25,7 @@ import {
   getRuns,
   getRunStats,
   launchRun,
+  seedDemoInputs,
   getUploadActivity,
 } from "@/lib/api-client";
 import type {
@@ -35,6 +37,8 @@ import type {
   RunDetail,
   RunLog,
   RunManifest,
+  RunStatus,
+  SeedInputsResponse,
 } from "@nextflow-genomics-object-storage/shared";
 
 // Single source of truth for query keys. Keep these tightly scoped so that
@@ -209,14 +213,55 @@ export function useRuns() {
   });
 }
 
+export const NON_TERMINAL_STATUSES: RunStatus[] = ["ready", "running"];
+const TERMINAL_STATUSES: RunStatus[] = ["succeeded", "failed"];
+
 export function useRun(runId: string) {
-  return useQuery<RunDetail, ApiError>({
+  const qc = useQueryClient();
+  const query = useQuery<RunDetail, ApiError>({
     queryKey: qk.run(runId),
     queryFn: () => getRun(runId),
     enabled: !!runId,
     refetchInterval: (query) =>
       query.state.data?.manifest.status === "running" ? RUN_POLL_MS : false,
   });
+
+  // The Results tab (`useRunResults`) mounts as soon as the run detail page
+  // opens — often while the run is still "ready"/"running" and B2 genuinely
+  // has no artifacts yet — and its query then caches that empty answer for
+  // the default 30s staleTime. The tab stays mounted for the rest of the
+  // session (Radix keeps the default-active TabsContent mounted), so nothing
+  // ever tells it to look again: without this it takes a manual full-page
+  // reload to see results after the run finishes. Force a refetch exactly
+  // when the status crosses from non-terminal to terminal, so results appear
+  // within one poll tick of "Succeeded" — no reload required.
+  const status = query.data?.manifest.status;
+  const previousStatusRef = useRef(status);
+  useEffect(() => {
+    const previousStatus = previousStatusRef.current;
+    if (
+      previousStatus &&
+      NON_TERMINAL_STATUSES.includes(previousStatus) &&
+      status &&
+      TERMINAL_STATUSES.includes(status)
+    ) {
+      // A page reload mid-run remounts `useRunResults` fresh, so its very
+      // first fetch can still be in flight here (partial/empty — the run
+      // wasn't done yet when it started). React Query's own cancel-on-refetch
+      // only kicks in once a query already has data (`state.data !==
+      // undefined`), which a never-yet-resolved query doesn't, so a bare
+      // invalidateQueries silently de-dupes onto that stale in-flight promise
+      // instead of starting a fresh one — its partial result then sticks with
+      // nothing left to supersede it. `cancelQueries` has no such gate: it
+      // unconditionally cancels any in-flight fetch first, so the
+      // invalidateQueries right after always starts a genuinely fresh fetch.
+      qc.cancelQueries({ queryKey: qk.runResults(runId) });
+      qc.invalidateQueries({ queryKey: qk.runResults(runId) });
+    }
+    previousStatusRef.current = status;
+  }, [status, runId, qc]);
+
+  return query;
 }
 
 export function useRunLog(runId: string, enabled: boolean, live: boolean) {
@@ -228,11 +273,21 @@ export function useRunLog(runId: string, enabled: boolean, live: boolean) {
   });
 }
 
-export function useRunResults(runId: string, enabled = true) {
+export function useRunResults(runId: string, enabled = true, runIsActive = false) {
   return useQuery<ResultArtifact[], ApiError>({
     queryKey: qk.runResults(runId),
     queryFn: () => getRunResults(runId),
     enabled: enabled && !!runId,
+    // Mirrors useRun's own polling. A fetch that started while the run was
+    // still non-terminal (results incomplete) can land after the
+    // terminal-transition invalidation's refetch — e.g. a page reload
+    // mid-run remounts this query, so cancelling+invalidating once on the
+    // transition (see useRun) isn't enough to beat every such race. Keep
+    // refetching on the same cadence as the run itself while it's still
+    // ready/running so any partial/stale snapshot self-corrects within one
+    // poll tick once the run actually finishes, instead of sticking until a
+    // manual "Refresh results" or full reload.
+    refetchInterval: runIsActive ? RUN_POLL_MS : false,
   });
 }
 
@@ -247,6 +302,17 @@ export function useRunStats() {
   return useQuery<GenomicsStats, ApiError>({
     queryKey: qk.runStats(),
     queryFn: getRunStats,
+  });
+}
+
+export function useSeedDemoInputs() {
+  const qc = useQueryClient();
+  return useMutation<SeedInputsResponse, ApiError, void>({
+    mutationFn: seedDemoInputs,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: qk.runInputs() });
+      qc.invalidateQueries({ queryKey: qk.runStats() });
+    },
   });
 }
 

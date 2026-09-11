@@ -2,7 +2,7 @@
 # Feature: Nextflow run orchestration (headline)
 
 ## Purpose
-Launch and monitor a **real** Nextflow pipeline run whose `workDir` and `--outdir` live on Backblaze B2 over the S3-compatible API, so B2 is the data lake for genomics compute.
+Launch and monitor a **real** Nextflow pipeline run that stages inputs from Backblaze B2 and publishes its `--outdir` back to B2 over the S3-compatible API, so B2 is the data lake for genomics compute. The bundled demo pipeline runs Nextflow's LOCAL executor, so its `workDir` is a local POSIX path — only a cloud executor (e.g. AWS Batch) or Fusion can put `workDir` on `s3://` too.
 
 ## Used By
 - UI: `/runs` (list + create), `/runs/[id]` (detail, Launch, log, results)
@@ -24,18 +24,18 @@ Launch and monitor a **real** Nextflow pipeline run whose `workDir` and `--outdi
 ## Outputs
 - `runs/<run_id>/manifest.json` — the run record (B2 is the sole store)
 - `runs/<run_id>/nextflow.log` — captured Nextflow log
-- `work/<run_id>/` — Nextflow workDir (staged intermediates, on B2)
+- Nextflow workDir (staged intermediates) — local disk for this demo (LOCAL executor); `work/<run_id>/` on B2 only applies with a cloud executor / Fusion
 - `results/<run_id>/{qc,align,variants,counts}/` — published outputs, on B2
 - Side effect: launches the `nextflow` binary as a subprocess
 
 ## Flow
 - Create a run → manifest persisted with status `ready`.
 - Launch → the service checks the engine. If `nextflow` + Java are on PATH, it writes a per-run `nextflow.config` (B2 `aws { endpoint/region/s3PathStyleAccess }`, credentials injected via the subprocess env — never written to disk), sets status `running`, and starts the subprocess on a background thread.
-- The subprocess stages `work/` and publishes `results/` to `s3://<bucket>/…`. On exit, the log is written to B2 and status becomes `succeeded` (exit 0) or `failed`.
+- The subprocess stages inputs from `s3://<bucket>/inputs/…` and publishes `results/` to `s3://<bucket>/…` (workDir is local disk). On exit, the log is written to B2 and status becomes `succeeded` (exit 0) or `failed`.
 - The UI polls status + log while a run is `running`.
 
 ## Why B2 matters here
-Nextflow speaks S3 natively for `-work-dir` and `publishDir`. Pointing those at B2 (`s3://<bucket>/work/<id>`, `s3://<bucket>/results/<id>`) turns B2 into the terabyte-scale, low-cost data lake for pipeline runs — no on-prem NFS, and the S3 endpoint comes from a single `B2_REGION`.
+Nextflow speaks S3 natively for `-work-dir` and `publishDir`. Pointing `publishDir`/`--outdir` at B2 (`s3://<bucket>/results/<id>`) turns B2 into the terabyte-scale, low-cost data lake for pipeline results — no on-prem NFS, and the S3 endpoint comes from a single `B2_REGION`. Putting `-work-dir` on B2 too needs a cloud executor (e.g. AWS Batch) or Fusion — the bundled demo's LOCAL executor keeps workDir local.
 
 ## Edge Cases
 - `nextflow` or Java missing → run goes to `blocked` with an install hint (never crashes).

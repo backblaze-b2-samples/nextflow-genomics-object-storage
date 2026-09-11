@@ -75,3 +75,11 @@ Low-severity polish, left for a follow-up; none blocks the core flow.
 | Custom `FileNotFoundError` shadowed the built-in | Renamed to `FileNotFoundServiceError` |
 | Dropzone accepted any file type client-side | `accept` allow-list mirroring backend `ALLOWED_TYPES` (tested for drift) |
 | No test harness for feature specs | pytest suite across upload, files, activity, errors, validation, rate limit, pagination |
+
+## 2026-09-11 — verify
+
+- Run detail (Results/preview) — a `.qc.json`/`.vcf`/`.tsv` artifact shows "Preview not available" in the preview dialog → could render small text artifacts inline instead of forcing a download (Download works). (.local/verify/C/rq-07-files-deep-link-preview.png)
+- Run detail (Log tab) — the Nextflow log is written once at launch and once in full at completion, so it does not stream incrementally during a run; live status badge + progress bar cover progress, but long (nf-core) runs would show a static log. (.local/verify/B/rq-07-run-log-tab.png from an earlier round)
+- Run detail / dashboard load — `get_run_detail` lists B2 objects synchronously (stage sizes + samplesheet row count), so first paint can take ~15–20s behind a skeleton on a cold/ slow-B2 request; consider parallelizing the `stage_size` calls / caching. (.local/verify/A/rp-08-run-detail-launched.png)
+- Progress bar (accessibility) — shared `apps/web/src/components/ui/progress.tsx` computes width manually but never forwards `value` to `ProgressPrimitive.Root`, so Radix reports `data-state="indeterminate"` and emits no `aria-valuenow` (affects run progress + upload progress). (generated shadcn component — needs a deliberate override)
+- Upload queue — dropping a second file while the first is still uploading silently drops it (only a transient toast); the dropzone disables during upload so it's an edge case, but a queued-add would be friendlier. (.local/verify/A/r3-05-upload-queue-complete.png from an earlier round)

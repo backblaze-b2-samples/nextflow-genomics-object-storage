@@ -10,6 +10,7 @@ import type {
   RunDetail,
   RunLog,
   RunManifest,
+  SeedInputsResponse,
   UploadStats,
 } from "@nextflow-genomics-object-storage/shared";
 
@@ -51,6 +52,9 @@ export const API_CLIENT_ROUTES = {
   runs: { method: "get", path: "/runs" },
   runCreate: { method: "post", path: "/runs" },
   runInputs: { method: "get", path: "/runs/inputs" },
+  // Uploads the bundled synthetic FASTQ + samplesheet — the in-app equivalent
+  // of `scripts/seed_inputs.py` for a UI-only user with no terminal access.
+  runInputsSeed: { method: "post", path: "/runs/inputs/seed" },
   runStats: { method: "get", path: "/runs/stats" },
   run: { method: "get", path: "/runs/{run_id}" },
   runLaunch: { method: "post", path: "/runs/{run_id}/launch" },
@@ -287,6 +291,21 @@ export async function deleteFile(key: string) {
   );
 }
 
+// Browsers have no built-in MIME mapping for these genomics extensions, so
+// `file.type` comes back empty for them — infer the same "text/plain" the
+// backend expects (MIME_EXTENSION_MAP in services/api/app/service/upload.py)
+// rather than send an empty content_type the presign step would reject.
+const EXTENSION_CONTENT_TYPE_FALLBACK: Record<string, string> = {
+  fastq: "text/plain",
+  fasta: "text/plain",
+};
+
+function resolveContentType(file: File): string {
+  if (file.type) return file.type;
+  const ext = file.name.split(".").pop()?.toLowerCase();
+  return (ext && EXTENSION_CONTENT_TYPE_FALLBACK[ext]) || file.type;
+}
+
 /**
  * Upload a file directly to B2 in three steps: presign (the API validates the
  * declared file and signs a short-lived PUT), a direct browser→B2 PUT, then
@@ -309,7 +328,7 @@ export async function uploadFile(
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         filename: file.name,
-        content_type: file.type,
+        content_type: resolveContentType(file),
         size_bytes: file.size,
       }),
     }
@@ -390,6 +409,12 @@ export async function createRun(req: RunCreateRequest) {
 
 export async function getRunInputs() {
   return apiFetch<string[]>(API_CLIENT_ROUTES.runInputs.path);
+}
+
+export async function seedDemoInputs() {
+  return apiFetch<SeedInputsResponse>(API_CLIENT_ROUTES.runInputsSeed.path, {
+    method: API_CLIENT_ROUTES.runInputsSeed.method.toUpperCase(),
+  });
 }
 
 export async function getRunStats() {

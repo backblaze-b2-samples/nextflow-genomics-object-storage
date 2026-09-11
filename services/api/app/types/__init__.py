@@ -1,5 +1,6 @@
 from app.types.errors import ErrorResponse
 from app.types.files import FileMetadata, FileMetadataDetail
+from app.types.inputs import SeedInputsResponse
 from app.types.runs import (
     GenomicsStats,
     Pipeline,
@@ -37,6 +38,7 @@ __all__ = [
     "RunLog",
     "RunManifest",
     "RunStatus",
+    "SeedInputsResponse",
     "StageSize",
     "UploadStats",
     "VerifyUploadRequest",

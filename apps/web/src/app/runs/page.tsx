@@ -8,8 +8,8 @@ export default function RunsPage() {
         <div className="min-w-0">
           <h1 className="page-title">Runs</h1>
           <p className="mt-1.5 max-w-prose text-sm text-muted-foreground">
-            Genomics pipeline runs. Each run stages inputs, work, and results on
-            Backblaze B2 and executes with Nextflow.
+            Genomics pipeline runs. Each run stages inputs from Backblaze B2 and
+            publishes results back to B2 as it executes with Nextflow.
           </p>
         </div>
         <div className="shrink-0">

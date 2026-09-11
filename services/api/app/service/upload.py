@@ -11,6 +11,7 @@ from app.repo import (
     invalidate_listing,
 )
 from app.service.files import FileKeyError, validate_key
+from app.service.upload_routing import UPLOAD_PREFIXES, destination_prefix
 from app.types import FileUploadResponse, PresignUploadResponse
 from app.types.formatting import humanize_bytes
 
@@ -58,7 +59,9 @@ MIME_EXTENSION_MAP: dict[str, set[str]] = {
     "image/gif": {"gif"},
     "image/webp": {"webp"},
     "application/pdf": {"pdf"},
-    "text/plain": {"txt", "text", "log", "md"},
+    # .fastq/.fasta are plain-text genomics formats (FASTQ reads, FASTA
+    # sequences) with no registered MIME type of their own.
+    "text/plain": {"txt", "text", "log", "md", "fastq", "fasta"},
     "text/csv": {"csv"},
     "application/json": {"json"},
     "application/zip": {"zip"},
@@ -161,9 +164,9 @@ class UploadError(Exception):
         super().__init__(detail)
 
 
-# Every object the app writes lives under this prefix; the API mints the key so
+# Every object the app writes lives under one of the prefixes in
+# UPLOAD_PREFIXES (see app.service.upload_routing); the API mints the key so
 # the client never chooses where its bytes land.
-UPLOAD_PREFIX = "uploads/"
 # Leading bytes fetched for the post-upload sniff. The deepest signature check
 # reads data[8:12]; 512 leaves generous headroom for any future signature.
 _SNIFF_BYTES = 512
@@ -194,7 +197,7 @@ def _validate_declared(filename: str, content_type: str, size_bytes: int) -> str
             "File extension does not match declared content type",
             status_code=415,
         )
-    return f"{UPLOAD_PREFIX}{safe_name}"
+    return f"{destination_prefix(safe_name)}{safe_name}"
 
 
 def create_presigned_upload(
@@ -236,8 +239,8 @@ def verify_upload(key: str) -> FileUploadResponse:
     always served as an allow-listed, non-executable type) and the signed size.
     Enabling quarantine→promote (see the design plan) closes that window.
     """
-    if not key.startswith(UPLOAD_PREFIX):
-        raise UploadError("Upload key must be under the uploads/ prefix")
+    if not key.startswith(UPLOAD_PREFIXES):
+        raise UploadError("Upload key must be under the uploads/ or inputs/ prefix")
     try:
         validate_key(key)
     except FileKeyError as e:

@@ -13,7 +13,9 @@ export const ACCEPTED_FILE_TYPES: Record<string, string[]> = {
   "image/gif": [".gif"],
   "image/webp": [".webp"],
   "application/pdf": [".pdf"],
-  "text/plain": [".txt", ".text", ".log", ".md"],
+  // .fastq/.fasta are plain-text genomics formats (FASTQ reads, FASTA
+  // sequences) with no registered MIME type of their own.
+  "text/plain": [".txt", ".text", ".log", ".md", ".fastq", ".fasta"],
   "text/csv": [".csv"],
   "application/json": [".json"],
   "application/zip": [".zip"],

@@ -1,13 +1,13 @@
 <!-- last_verified: 2026-09-10 -->
 # Nextflow Genomics Object Storage
 
-Use **[Backblaze B2](https://www.backblaze.com/sign-up/ai-cloud-storage?utm_source=github&utm_medium=referral&utm_campaign=ai_artifacts&utm_content=b2ai-nextflow-genomics-object-storage)** as the terabyte-scale data lake for [Nextflow](https://github.com/nextflow-io/nextflow) pipeline runs. This sample is a control plane for genomics runs: you ingest FASTQ + a samplesheet to B2, launch a **real** Nextflow run whose `workDir` and `--outdir` live on B2 over the S3-compatible API, watch its status and logs, then browse and download the QC / alignment / variant / counts artifacts it wrote back — all staged through B2, replacing expensive on-prem NFS.
+Use **[Backblaze B2](https://www.backblaze.com/sign-up/ai-cloud-storage?utm_source=github&utm_medium=referral&utm_campaign=ai_artifacts&utm_content=b2ai-nextflow-genomics-object-storage)** as the terabyte-scale data lake for [Nextflow](https://github.com/nextflow-io/nextflow) pipeline runs. This sample is a control plane for genomics runs: you ingest FASTQ + a samplesheet to B2, launch a **real** Nextflow run that stages those inputs from B2 and publishes its `--outdir` back to B2 over the S3-compatible API (the bundled demo pipeline's `workDir` is local — its LOCAL executor requires a POSIX path; an `s3://` workDir needs a cloud executor or Fusion, see below), watch its status and logs, then browse and download the QC / alignment / variant / counts artifacts it wrote back — replacing expensive on-prem NFS.
 
 The headline engine is genuine Nextflow (real DSL2, real S3 staging), not a substitute. It ships a bundled, **Docker-free** demo pipeline that runs anywhere Nextflow + Java are installed, and documents the realistic `nf-core/sarek` / `nf-core/rnaseq -profile test` path for teams with containers. It runs on local OSS — B2 credentials only, no second API key.
 
 **What you get out of the box:**
 - A **Run** control plane — create, launch, monitor, and delete genomics pipeline runs (Next.js 16 + React 19 + Tailwind v4 + shadcn/ui).
-- Real Nextflow orchestration with B2 wired in as the S3 backend (`workDir` + `results` on `s3://`).
+- Real Nextflow orchestration with B2 wired in as the S3 backend for inputs + `results` (the bundled demo's `workDir` is local; a cloud executor / Fusion is needed for an `s3://` workDir).
 - A bundled, synthetic-data demo pipeline (`pipelines/demo/`) — no Docker, no reference genome, runs in seconds.
 - Genomics ingest (presigned direct-to-B2 upload) plus a **scoped Results explorer** and the full **bucket explorer**.
 - FastAPI backend with strict layered architecture, structural tests, and an agent-first doc set.
@@ -22,11 +22,13 @@ Every run reads and writes through one bucket, organized by stage:
 inputs/      FASTQ + samplesheets you ingest (shared across runs)
 runs/        <run_id>/manifest.json  (the run record — B2 is the sole store)
              <run_id>/nextflow.log   (captured Nextflow log)
-work/        <run_id>/               Nextflow workDir (staged intermediates)
+work/        <run_id>/               Nextflow workDir — only populated with a cloud
+                                      executor / Fusion; the bundled demo's workDir
+                                      is local (its LOCAL executor needs a POSIX path)
 results/     <run_id>/{qc,align,variants,counts}/   published outputs
 ```
 
-There is **no database**: a run's manifest JSON on B2 *is* the record. Nextflow's own AWS client stages `work/` and publishes `results/` directly to B2 (endpoint derived from `B2_REGION`, path-style access). That is the genuine "B2 as the data lake" demonstration.
+There is **no database**: a run's manifest JSON on B2 *is* the record. Nextflow's own AWS client stages inputs from and publishes `results/` directly to B2 (endpoint derived from `B2_REGION`, path-style access). That is the genuine "B2 as the data lake" demonstration for inputs + results; the bundled demo's `work/` prefix stays empty because its workDir is local.
 
 ## Quick Start
 
@@ -105,7 +107,7 @@ Do not choose this repository expecting a complete hosted genomics platform. It 
 ## Core Features
 
 - [Genomics ingest to B2](docs/features/genomics-ingest.md) — presigned direct-to-B2 upload of FASTQ + samplesheets into `inputs/`.
-- [Nextflow run orchestration](docs/features/nextflow-runs.md) — configure, launch, and monitor a real Nextflow run whose work + results live on B2.
+- [Nextflow run orchestration](docs/features/nextflow-runs.md) — configure, launch, and monitor a real Nextflow run that stages inputs from B2 and publishes results back to B2 (the bundled demo's workDir is local).
 - [Results explorer](docs/features/results-explorer.md) — browse and download a run's `results/<run_id>/` artifacts (scoped), alongside the full bucket [File Browser](docs/features/file-browser.md).
 - [Dashboard](docs/features/dashboard.md) — runs by status, result artifacts, and storage-by-stage across the data lake.
 - [Design System](docs/design-system.md) — tokens, primitives, and the inline `ErrorState` / `EmptyState` patterns. Live preview at `/design`.
@@ -196,10 +198,10 @@ Full setup is in the [Vercel delivery contract](infra/vercel/README.md).
 ## FAQ
 
 **What does Nextflow Genomics Object Storage do?**
-It is a control plane for Nextflow genomics pipeline runs that uses [Backblaze B2](https://www.backblaze.com/cloud-storage?utm_source=github&utm_medium=referral&utm_campaign=ai_artifacts&utm_content=b2ai-nextflow-genomics-object-storage) as the S3-compatible data lake for inputs, intermediate work, and published results. You ingest FASTQ to B2, launch a run, and browse/download its artifacts.
+It is a control plane for Nextflow genomics pipeline runs that uses [Backblaze B2](https://www.backblaze.com/cloud-storage?utm_source=github&utm_medium=referral&utm_campaign=ai_artifacts&utm_content=b2ai-nextflow-genomics-object-storage) as the S3-compatible data lake for inputs and published results (the bundled demo's intermediate work directory is local). You ingest FASTQ to B2, launch a run, and browse/download its artifacts.
 
 **Is the Nextflow execution real, or mocked?**
-Real. The backend launches the `nextflow` binary as a subprocess with B2 wired in as the S3 backend (`-work-dir s3://…`, `--outdir s3://…`). Only the automated test suite mocks the subprocess, so `pnpm verify` stays fast and credential-free.
+Real. The backend launches the `nextflow` binary as a subprocess with B2 wired in as the S3 backend for inputs + results (`--outdir s3://…`; the bundled demo's `-work-dir` is local because its LOCAL executor requires a POSIX path). Only the automated test suite mocks the subprocess, so `pnpm verify` stays fast and credential-free.
 
 **Do I need Docker or a reference genome?**
 Not for the bundled `demo` pipeline — it uses pure-Python processes on synthetic data and runs in seconds. The `nf-core/sarek` and `nf-core/rnaseq` options are the documented realistic path and do need a container engine.

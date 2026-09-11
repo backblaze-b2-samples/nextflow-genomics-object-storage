@@ -8,6 +8,11 @@ import type { NextConfig } from "next";
 // without per-deployment tweaks.
 const nextConfig: NextConfig = {
   transpilePackages: ["@nextflow-genomics-object-storage/shared"],
+  // Next.js 16's dev server only allow-lists `localhost` asset-origin requests
+  // by default; it 403s the client bundle's chunk fetches when the app is
+  // opened via 127.0.0.1 (e.g. `scripts/wait-ready.mjs` prints the 127.0.0.1
+  // URL), which silently prevents hydration. Cover both loopback forms.
+  allowedDevOrigins: ["127.0.0.1", "localhost"],
   images: {
     remotePatterns: [
       {

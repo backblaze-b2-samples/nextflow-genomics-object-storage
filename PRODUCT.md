@@ -12,16 +12,17 @@ wire that storage in. Their context: they run Nextflow (or nf-core) pipelines th
 large FASTQ inputs, stage terabytes of intermediate work, and publish BAM/VCF/QC
 results, and they want those to live on cheap, S3-compatible object storage instead of
 on-prem NFS or costly hyperscaler buckets. They want a working reference for pointing
-Nextflow's `work-dir` and `--outdir` at B2, and a control plane to launch and inspect
-runs.
+Nextflow's `--outdir` (and, with a cloud executor / Fusion, its `work-dir`) at B2,
+and a control plane to launch and inspect runs.
 
 ## Product Purpose
 
 A control plane for genomics pipeline **runs** (Next.js 16 + React 19 + Tailwind v4 +
 shadcn/ui frontend, FastAPI backend) that uses Backblaze B2 as the terabyte-scale data
-lake for inputs, work, and results. It ingests FASTQ to B2, launches a real Nextflow
-run whose `workDir` and `--outdir` live on B2 over the S3-compatible API, and lets you
-monitor status/logs and browse/download artifacts. A bundled Docker-free demo pipeline
+lake for inputs and results (work stages locally for the bundled demo's LOCAL
+executor). It ingests FASTQ to B2, launches a real Nextflow run whose `--outdir`
+lives on B2 over the S3-compatible API, and lets you monitor status/logs and
+browse/download artifacts. A bundled Docker-free demo pipeline
 makes it runnable in seconds on synthetic data. Success = a bioinformatics team can
 clone it, point it at their bucket, launch a run, and see B2 working as the pipeline's
 storage backend end to end — with every screen trustworthy enough to build on.

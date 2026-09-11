@@ -94,8 +94,8 @@ workflow {
     ALIGN(samples)
     VARIANTS(samples)
     COUNTS(samples)
-}
 
-workflow.onComplete {
-    log.info "Run ${params.run_id} ${workflow.success ? 'succeeded' : 'failed'}. Results: ${params.outdir}"
+    workflow.onComplete = {
+        log.info "Run ${params.run_id} ${workflow.success ? 'succeeded' : 'failed'}. Results: ${params.outdir}"
+    }
 }
