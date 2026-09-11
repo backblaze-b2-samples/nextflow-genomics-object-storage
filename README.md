@@ -14,6 +14,28 @@ The headline engine is genuine Nextflow (real DSL2, real S3 staging), not a subs
 
 > **Runs use synthetic (simulated) sequence data only — never real human genomic data.**
 
+## What it looks like
+
+**Dashboard** — run totals, how bytes split across the B2 data-lake stages, and the most recent genomics runs.
+
+![Dashboard showing run totals, B2 storage-by-stage, and recent runs](docs/images/dashboard.png)
+
+**Runs** — every Nextflow pipeline run with its pipeline, execution profile, status, and creation time.
+
+![Runs list of genomics pipeline runs with status and profile](docs/images/runs.png)
+
+**Run detail** — a single run's B2 storage footprint, the exact Nextflow command it ran, and the QC / alignment / variant / counts artifacts it published back to B2.
+
+![Run detail with the Nextflow command and downloadable result artifacts](docs/images/run-detail.png)
+
+**Upload** — drag-and-drop FASTQ reads and samplesheets straight to the B2 `inputs/` prefix through presigned direct-to-B2 upload.
+
+![Upload page for ingesting FASTQ reads and samplesheets to B2](docs/images/upload.png)
+
+**New run dialog** — pick a pipeline, execution profile, and samplesheet, then launch a run whose inputs stage from B2 and whose results publish back to B2.
+
+![New pipeline run dialog for choosing pipeline, profile, and samplesheet](docs/images/create-run-dialog.png)
+
 ## The B2 data lake layout
 
 Every run reads and writes through one bucket, organized by stage:
